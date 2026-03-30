@@ -1,4 +1,4 @@
-# Chasseur du Monde du Wumpus - Agent BDI en Prolog
+# Chasseur du Monde du Wumpus - HW2
 
 ![SWI-Prolog](https://img.shields.io/badge/SWI--Prolog-8.4+-blue.svg)
 
