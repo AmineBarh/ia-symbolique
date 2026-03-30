@@ -1,8 +1,17 @@
-# Chasseur du Monde du Wumpus — Agent BDI en Prolog
+# Chasseur du Monde du Wumpus - Agent BDI en Prolog
 
 ![SWI-Prolog](https://img.shields.io/badge/SWI--Prolog-8.4+-blue.svg)
 
 Un agent intelligent professionnel basé sur le modèle BDI (Croyance-Désir-Intention), implémenté en SWI-Prolog. Il navigue de manière autonome dans le Monde du Wumpus, gère l'incertitude épistémique et communique via une interface HTTP REST.
+
+---
+## Équipe
+- Mohamed Amine Barhoumi
+- Claude Epo
+- Franka Lebaramo
+- Patrick Gomes
+
+*IADS - ESIEA 4A, 2025-2026*
 
 ---
 
@@ -14,7 +23,6 @@ Un agent intelligent professionnel basé sur le modèle BDI (Croyance-Désir-Int
 5. [Installation et Configuration](#installation-et-configuration)
 6. [Exécution du Projet](#exécution-du-projet)
 7. [Logs de Débogage](#logs-de-débogage)
-8. [Limitations Connues / Travaux Futurs](#limitations-connues--travaux-futurs)
 
 
 ---
@@ -102,12 +110,3 @@ L'agent affiche des logs détaillés dans la console. Recherchez les préfixes `
 - `[hunter] Processing Step X...` : Indique l'étape actuelle de la simulation.
 - `[debug] Wumpus Update Pre/Post` : Affiche la taille des partitions épistémiques (`KT`, `KF`, `OT`) avant et après le traitement des perceptions.
 - `[debug] DECIDE MOVE` : Affiche la position actuelle, la cellule cible et le statut des dangers avant une action `move`.
-
----
-
-## Limitations Connues / Travaux Futurs
-- **Heuristique de base** : L'implémentation A* utilise actuellement la distance de Manhattan. Une heuristique plus complexe prenant en compte le coût des rotations améliorerait l'efficacité.
-- **Injection de la "Ground-Truth"** : À l'étape 0, l'agent "regarde" le serveur de simulation pour cartographier les murs. Un agent réellement autonome devrait les découvrir uniquement via la perception `bump`.
-- **Gestion de la mémoire** : Sur de très grandes grilles, la liste des cellules visitées et les dictionnaires de partitions peuvent croître significativement.
-
-
