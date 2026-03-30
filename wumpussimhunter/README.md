@@ -50,8 +50,8 @@ L'agent **Hunter** est conçu pour explorer un environnement hostile (grille de 
 | :--- | :--- |
 | `hunter_server.pl` | Point d'entrée. Serveur HTTP REST (port 8081) gérant les échanges JSON. |
 | `hunter.pl` | Cœur de l'agent : boucle BDI, délibération, planificateur A* et mise à jour de l'état. |
-| `theory_wumpus.pl` | Logique déductive issue de l'apprentissage (ILP) pour la classification des dangers. |
-| `wumpus_cbr.pl` | Module optionnel de raisonnement à partir de cas (CBR) pour l'aide à la décision. |
+| `wumpus_cbr.pl` | **Moteur Principal de Classification**. Utilise le raisonnement à partir de cas (CBR) pour évaluer la dangerosité des cases. |
+| `theory_wumpus.pl` | **Module de Secours Symbolique**. Contient la logique déductive (ILP) utilisée en complément du CBR. |
 | `background.pl` | Connaissances de fond (topologie, adjacence) pour le moteur d'apprentissage Aleph. |
 
 ---
