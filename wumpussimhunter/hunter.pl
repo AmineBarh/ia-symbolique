@@ -7,7 +7,7 @@
 :- use_module(library(clpfd)).
 :- use_module(library(lists)).
 :- use_module(library(pairs)).
-:- use_module('theory_wumpus.pl', []).
+:- use_module('wumpus_cbr', [wumpus/5]).
 
 if_(If_1, Then_0, Else_0) :-
     call(If_1, Truth),
@@ -647,27 +647,7 @@ adjacent_cell(CellA, DictB) :-
     !,
     adjacent_cell(CellA, cell(DictB.x, DictB.y)).
 
-wumpus(_HunterPos, EatWumpus, _Percepts, CellToTest, knownTrue) :-
-    in_known_true(CellToTest, EatWumpus).
-wumpus(HunterPos, EatWumpus, Percepts, CellToTest, knownTrue) :-
-    stench_in_percepts(Percepts),
-    in_or_true(CellToTest, EatWumpus),
-    or_true_list(EatWumpus, OrTrueList),
-    OrTrueList = [CellToTest],
-    adjacent_cell(HunterPos, CellToTest).
-wumpus(_HunterPos, EatWumpus, _Percepts, CellToTest, knownFalse) :-
-    in_known_false(CellToTest, EatWumpus).
-wumpus(HunterPos, _EatWumpus, Percepts, CellToTest, knownFalse) :-
-    no_stench_in_percepts(Percepts),
-    adjacent_cell(HunterPos, CellToTest).
-wumpus(_HunterPos, EatWumpus, _Percepts, CellToTest, orTrue) :-
-    in_or_true(CellToTest, EatWumpus),
-    \+ in_known_true(CellToTest, EatWumpus),
-    \+ in_known_false(CellToTest, EatWumpus).
-wumpus(_HunterPos, EatWumpus, _Percepts, CellToTest, unknown) :-
-    \+ in_known_true(CellToTest, EatWumpus),
-    \+ in_known_false(CellToTest, EatWumpus),
-    \+ in_or_true(CellToTest, EatWumpus).
+
 
 in_known_true(Cell, [eatwumpus(knownTrue, L)|_]) :- member(Cell, L), !.
 in_known_true(Cell, [_|T]) :- in_known_true(Cell, T).

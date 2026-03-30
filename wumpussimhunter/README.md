@@ -1,120 +1,160 @@
 # Chasseur du Monde du Wumpus - HW2
 
 ![SWI-Prolog](https://img.shields.io/badge/SWI--Prolog-8.4+-blue.svg)
+![ESIEA](https://img.shields.io/badge/ESIEA-IADS--4A-red.svg)
 
-Un agent intelligent professionnel basé sur le modèle BDI (Croyance-Désir-Intention), implémenté en SWI-Prolog. Il navigue de manière autonome dans le Monde du Wumpus, gère l'incertitude épistémique et communique via une interface HTTP REST.
-
----
-
-## Équipe
-
-- Mohamed Amine Barhoumi
-- Claude Epo
-- Franka Lebaramo
-- Patrick Gomes
-
-_IADS - ESIEA 4A, 2025-2026_
+Un agent intelligent autonome basé sur le modèle **BDI** (Croyance-Désir-Intention), implémenté en **SWI-Prolog**. Il résout le problème du Monde du Wumpus en naviguant via une interface HTTP REST, en gérant l'incertitude par des partitions épistémiques et en planifiant ses actions avec l'algorithme A*.
 
 ---
 
 ## Table des Matières
 
-1. [Architecture](#architecture)
-2. [Modèle Mental BDI](#modèle-mental-bdi)
-3. [Représentation des Connaissances](#représentation-des-connaissances)
-4. [Contrôle du Rythme (Étape Pair/Impair)](#contrôle-du-rythme-étape-pairimpair)
-5. [Installation et Configuration](#installation-et-configuration)
-6. [Exécution du Projet](#exécution-du-projet)
-7. [Logs de Débogage](#logs-de-débogage)
+1. [Équipe](#équipe)
+2. [Description du Projet](#description-du-projet)
+3. [Architecture des Fichiers](#architecture-des-fichiers)
+4. [Modèle BDI](#modèle-bdi)
+5. [Représentation des Connaissances](#représentation-des-connaissances)
+6. [Rythme Pair/Impair](#rythme-pairimpair)
+7. [Prérequis](#prérequis)
+8. [Installation](#installation)
+9. [Lancement](#lancement)
+10. [Logs de Débogage](#logs-de-débogage)
+11. [Règles de Codage](#règles-de-codage)
 
 ---
 
-## Architecture
+## Équipe
 
-Le projet est divisé en trois composants principaux :
+- **Mohamed Amine Barhoumi**
+- **Claude Epo**
+- **Patrick Gomes**
+- **Franka Lebaramo**
 
-| Fichier                       | Rôle                                                                                                           |
-| :---------------------------- | :------------------------------------------------------------------------------------------------------------- |
-| `hunter_server.pl`            | Point d'entrée. Enveloppe l'agent dans un serveur HTTP (port 8081) via `library(http)`.                        |
-| `hunter.pl`                   | Boucle BDI principale. Gère la mise à jour des croyances, la délibération A\* et le choix des actions.         |
-| `theory_wumpus.pl`            | Théorie déclarative pour la détection du Wumpus (validée par ILP), gérant les transitions épistémiques.        |
-| `hunter.pl` (helpers réifiés) | Le fichier intègre directement la logique réifiée minimale (`if_/3`, `member_t/3`, etc.) pour rester autonome. |
-| `wumpussimserver/`            | L'environnement de simulation qui héberge la grille du Monde du Wumpus.                                        |
+*ESIEA Paris, 4A IADS, 2025–2026*
 
 ---
 
-## Modèle Mental BDI
+## Description du Projet
 
-L'agent suit le cycle classique **Croyance-Désir-Intention** :
+L'agent **Hunter** est conçu pour explorer un environnement hostile (grille de $N \times M$) afin de récupérer un trésor (l'or) et de s’échapper. Ses capacités incluent :
+- **Perception active** : Analyse des odeurs (*stench*), brises (*breeze*), et lueurs (*glitter*).
+- **Raisonnement spatial** : Localisation du Wumpus et des puits par déduction logique (ILP).
+- **Navigation sécurisée** : Déplacement uniquement sur des cases garanties sans danger.
+- **Combat stratégique** : Capacité de tirer une flèche pour éliminer le Wumpus s'il bloque le chemin.
 
-- **Croyances (Beliefs)** : Un dictionnaire structuré stocké dans l'état de l'agent. Il inclut des fluents (position, statut de l'or), des éternels (murs, position de la sortie) et des **partitions épistémiques** pour les dangers.
-- **Désirs (Desires)** : Objectifs de haut niveau prioritaires pour le moteur de délibération :
-  1. **Ramasser l'Or** : Si une brillance (`glitter`) est détectée.
-  2. **Rentrer à la Maison** : Si l'or a été récupéré.
-  3. **Tuer le Wumpus** : Si une position confirmée est dans la ligne de mire.
-  4. **Explorer la Frontière** : Naviguer en toute sécurité vers des cellules non visitées.
-- **Intentions** : Une liste concrète d'actions (ex: `[move, right, move, grab]`) générée par le planificateur A\* et stockée dans la croyance `intention_plan`.
+---
+
+## Architecture des Fichiers
+
+| Fichier | Rôle Exact |
+| :--- | :--- |
+| `hunter_server.pl` | Point d'entrée. Serveur HTTP REST (port 8081) gérant les échanges JSON. |
+| `hunter.pl` | Cœur de l'agent : boucle BDI, délibération, planificateur A* et mise à jour de l'état. |
+| `theory_wumpus.pl` | Logique déductive issue de l'apprentissage (ILP) pour la classification des dangers. |
+| `wumpus_cbr.pl` | Module optionnel de raisonnement à partir de cas (CBR) pour l'aide à la décision. |
+| `background.pl` | Connaissances de fond (topologie, adjacence) pour le moteur d'apprentissage Aleph. |
+
+---
+
+## Modèle BDI
+
+L'agent Hunter suit une architecture **Belief-Desire-Intention** stricte :
+
+1.  **Croyances (*Beliefs*)** :
+    - L'état interne maintient des **partitions épistémiques** pour chaque danger.
+    - Il stocke les connaissances "éternelles" (murs, sortie) et "fluentes" (position, orientation).
+2.  **Désirs (*Desires*)** :
+    - Évalués par le prédicat `deliberate/3`.
+    - Priorités : 
+        1. Ramasser l'or (`grab`).
+        2. Sortir (`climb`) si l'or est possédé.
+        3. Éliminer le Wumpus (`shoot`) si détecté.
+        4. Explorer les zones inconnues et sûres.
+3.  **Intentions** :
+    - Plans d'actions générés par **A*** (ex: `[move, left, move]`).
+    - L'agent s'engage dans son intention jusqu'à complétion ou apparition d'une perception invalidante (*bump*, nouvelle odeur).
 
 ---
 
 ## Représentation des Connaissances
 
-L'agent utilise des **partitions épistémiques** pour représenter sa connaissance des dangers (Wumpus et Puits). Chaque cellule est classée dans l'une des trois partitions :
+Les dangers (Wumpus/Puits) sont gérés via trois partitions épistémiques :
 
-- `knownTrue` : Le danger est définitivement présent à cet endroit.
-- `knownFalse` : La cellule est définitivement sûre.
-- `orTrue` : La cellule est un _suspect_ (ex: adjacente à une odeur/brise mais non confirmée).
-
-`theory_wumpus.pl` contient la logique de transition entre ces états. Par exemple, si le chasseur est en (1,1) et ne sent rien, tous les voisins (1,2) et (2,1) passent en `knownFalse`. Si une odeur est sentie et qu'un seul voisin n'est pas `knownFalse`, il passe en `knownTrue`.
+| Partition | Signification | Exemple de Transition |
+| :--- | :--- | :--- |
+| `knownTrue` | Danger confirmé à 100%. | Une odeur en (1,1) et (2,1) + vent en (1,2) $\rightarrow$ Wumpus identifié en (2,2). |
+| `knownFalse` | Case garantie sans danger. | Passage sur la case ou absence de perception adjacente (ex: pas d'odeur en 1,1). |
+| `orTrue` | Case suspecte (incertitude). | Perception d'une odeur : toutes les cases adjacentes non visitées passent en `orTrue`. |
 
 ---
 
-## Contrôle du Rythme (Étape Pair/Impair)
+## Rythme Pair/Impair
 
-L'agent implémente un **rythme Pair/Impair** pour séparer le calcul de l'action physique. Cela garantit que l'état de l'environnement reste synchronisé pendant que l'agent "réfléchit".
+Pour garantir la synchronisation avec le simulateur, l'agent opère sur un cycle de deux étapes par action physique :
 
 ```mermaid
 graph TD
-    A[Perception de la Simulation] --> B{Étape Modulo 2}
-    B -- "0 (Étape Paire)" --> C[Mise à jour des Croyances]
-    C --> D[Action: none]
-    D --> G[Retour à la Simulation]
-
-    B -- "1 (Étape Impaire)" --> E[Délibération / Prochaine Action]
-    E --> F[Action: move/turn/grab...]
-    F --> G
-```
-
-## Installation et Configuration
-
-Cloner le dépôt :
-
-```bash
-git clone <url-du-depot>
-cd ai-prolog/wumpussimhunter
+    Start[Réception Percepts] --> Check{Etape mod 2}
+    
+    Check -- "0 (Paire)" --> Update[Mise à jour des Croyances]
+    Update --> ActionNone[Action: 'none']
+    ActionNone --> End[Retour JSON]
+    
+    Check -- "1 (Impaire)" --> Deliberate[Délibération / Planification]
+    Deliberate --> GetAction[Extraction de la 1ère action du plan]
+    GetAction --> ActionPhys[Action: move/turn/...]
+    ActionPhys --> End
 ```
 
 ---
 
-## Exécution du Projet
+## Prérequis
 
-1. **Démarrer le serveur du chasseur** :
+- **SWI-Prolog** $\ge$ 8.4
+- Bibliothèque **reif** (logique réifiée pour `if_/3`).
+  - Installation : `?- pack_install(reif).`
 
-   ```bash
-   swipl hunter_server.pl
-   ```
+---
 
-   Le serveur démarrera sur `http://localhost:8081`.
+## Installation
 
-2. **Connecter la simulation** :
-   Ouvrez l'environnement de simulation (fourni dans le répertoire `wumpussimserver`) et pointez-le vers l'URL du serveur du chasseur.
+```bash
+git clone https://github.com/votre-repo/wumpus-hunter.git
+cd wumpus-hunter/ai-prolog/wumpussimhunter
+```
+
+---
+
+## Lancement
+
+1.  **Démarrer le simulateur** :
+    Accédez au dossier `wumpussimserver/` et lancez l'exécutable ou le script de simulation (port 8080).
+2.  **Démarrer l'agent** :
+    ```bash
+    swipl hunter_server.pl
+    ```
+    L'agent écoute sur le port **8081**.
 
 ---
 
 ## Logs de Débogage
 
-L'agent affiche des logs détaillés dans la console. Recherchez les préfixes `[debug]` et `[hunter]` :
+L'agent produit des logs détaillés sur `user_error` pour faciliter le suivi :
 
-- `[hunter] Processing Step X...` : Indique l'étape actuelle de la simulation.
-- `[debug] Wumpus Update Pre/Post` : Affiche la taille des partitions épistémiques (`KT`, `KF`, `OT`) avant et après le traitement des perceptions.
-- `[debug] DECIDE MOVE` : Affiche la position actuelle, la cellule cible et le statut des dangers avant une action `move`.
+| Préfixe | Signification | Exemple |
+| :--- | :--- | :--- |
+| `[hunter]` | Flux principal de l'agent. | `Processing Step 14...` |
+| `[debug]` | Détails du raisonnement interne. | `Wumpus Update Pre: KT=[cell(2,2)], KF=[cell(1,1)], OT=[]` |
+| `[debug]` | Décision de mouvement. | `DECIDE MOVE: From=... To=...` |
+
+---
+
+## Règles de Codage Respectées
+
+Le code suit des standards de programmation logique pure :
+- Utilisation de **clpfd** pour l'arithmétique.
+- Utilisation de **reif** (`if_/3`) pour les conditionnels déclaratifs.
+- Utilisation de **dif/2** pour les contraintes d'inégalité.
+- **Aucun** `assert/retract` (état passé via récursion d'arguments).
+- **Aucun** `is/2` ou comparaison standard (`<`, `>`).
+- **Aucun** opérateur "cut-fail" ou `(->)/2` dans la logique métier.
