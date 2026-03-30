@@ -7,26 +7,19 @@ Un agent intelligent professionnel basé sur le modèle BDI (Croyance-Désir-Int
 ---
 
 ## Table des Matières
-1. [Présentation](#présentation)
-2. [Architecture](#architecture)
-3. [Modèle Mental BDI](#modèle-mental-bdi)
-4. [Représentation des Connaissances](#représentation-des-connaissances)
-5. [Contrôle du Rythme (Étape Pair/Impair)](#contrôle-du-rythme-étape-pairimpair)
-6. [Prérequis](#prérequis)
-7. [Installation et Configuration](#installation-et-configuration)
-8. [Exécution du Projet](#exécution-du-projet)
-9. [Logs de Débogage](#logs-de-débogage)
-10. [Limitations Connues / Travaux Futurs](#limitations-connues--travaux-futurs)
-11. [Auteur](#auteur)
+1. [Architecture](#architecture)
+2. [Modèle Mental BDI](#modèle-mental-bdi)
+3. [Représentation des Connaissances](#représentation-des-connaissances)
+4. [Contrôle du Rythme (Étape Pair/Impair)](#contrôle-du-rythme-étape-pairimpair)
+5. [Installation et Configuration](#installation-et-configuration)
+6. [Exécution du Projet](#exécution-du-projet)
+7. [Logs de Débogage](#logs-de-débogage)
+8. [Limitations Connues / Travaux Futurs](#limitations-connues--travaux-futurs)
+
 
 ---
 
-## Présentation
-Ce projet a été réalisé dans le cadre du cours d'**IA Symbolique (IAS)** à l'**ESIEA Paris** (4ème année d'ingénierie). Il démontre l'implémentation d'un agent intelligent capable de raisonner dans un environnement partiellement observable : des puits, un Wumpus mortel et un trésor caché.
 
-L'agent **BDI** ne se contente pas de réagir aux perceptions locales ; il maintient un état interne persistant, délibère sur des objectifs complexes (trouver l'or, retourner à la sortie) et exécute des plans multi-étapes via l'algorithme A*.
-
----
 
 ## Architecture
 Le projet est divisé en trois composants principaux :
@@ -80,17 +73,7 @@ graph TD
     F --> G
 ```
 
----
 
-## Prérequis
-- **SWI-Prolog 8.4+**
-- Bibliothèques standard requises (incluse avec SWI-Prolog) :
-    - `clpfd` (Constraint Logic Programming over Finite Domains)
-    - `http/thread_httpd`, `http/http_dispatch`, `http/http_json`
-    - `lists`, `pairs`, `dicts`
-- **Logique Réifiée** : Le module `reif.pl` doit être présent dans le répertoire source.
-
----
 
 ## Installation et Configuration
 Cloner le dépôt :
