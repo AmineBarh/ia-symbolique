@@ -1,15 +1,3 @@
-%%% ==========================================================================
-%%% hunter.pl  –  ILP-Powered Wumpus Hunter Agent
-%%% IAS 4A – ESIEA  |  TP2 + HW2
-%%%
-%%% Strict Coding Rules adhered to:
-%%%   - clpfd, pairs, lists, dicts, reif used.
-%%%   - NO assert/retract.
-%%%   - NO is/2 (used #=).
-%%%   - NO (->)/2 (used if_/3).
-%%%   - NO \=/2 (used dif/2).
-%%% ==========================================================================
-
 :- module(hunter, [
     select_action/3
 ]).
@@ -19,15 +7,42 @@
 :- use_module(library(clpfd)).
 :- use_module(library(lists)).
 :- use_module(library(pairs)).
-:- use_module(reif).
-:- use_module(theory_wumpus).
+:- use_module('theory_wumpus.pl', []).
 
-% ── Additional Reified Meta-Helpers (not in reif.pl) ────────────────
+if_(If_1, Then_0, Else_0) :-
+    call(If_1, Truth),
+    if_truth(Truth, Then_0, Else_0).
+
+if_truth(true, Then_0, _) :- call(Then_0).
+if_truth(false, _, Else_0) :- call(Else_0).
+
+=(X, Y, true) :- X = Y, !.
+=(X, Y, false) :- dif(X, Y).
+
+member_t(_, [], false).
+member_t(X, [Y|Ys], Truth) :-
+    if_( =(X, Y),
+         Truth = true,
+         member_t(X, Ys, Truth)).
+
+or_t(A_1, _B_1, true) :-
+    call(A_1, true),
+    !.
+or_t(_A_1, B_1, Truth) :-
+    call(B_1, Truth).
+
+and_t(A_1, _B_1, false) :-
+    call(A_1, false),
+    !.
+and_t(_A_1, B_1, Truth) :-
+    call(B_1, Truth).
+
+not_t(A_1, false) :-
+    call(A_1, true),
+    !.
+not_t(_A_1, true).
+
 non_member_t(X, Ls, T) :- if_(member_t(X, Ls), T = false, T = true).
-
-%%% ──────────────────────────────────────────────────────────────────────────
-%%% TOP-LEVEL ENTRY POINT
-%%% ──────────────────────────────────────────────────────────────────────────
 
 select_action(HunterState, Action, NewHunterState) :-
     Beliefs   = HunterState.beliefs,
@@ -41,22 +56,18 @@ select_action(HunterState, Action, NewHunterState) :-
     CurrentDir = DirEntry.d,
     dict_to_cell_safe(HunterPos, HPTerm),
     
-    %% 1. Update Wumpus beliefs
     EWBeliefsJSON = Beliefs.uncertain_eternals.eat_wumpus,
     json_to_beliefs(eatwumpus, EWBeliefsJSON, EWBeliefs0),
     reconcile_shot_result(HPTerm, CurrentDir, EWBeliefs0, Percepts, EWBeliefs),
     update_wumpus_beliefs(HunterPos, EWBeliefs, Percepts, Walls, NewEWBeliefs),
     
-    %% 2. Update Pit beliefs
     EPBeliefsJSON = Beliefs.uncertain_eternals.eat_pit,
     json_to_beliefs(eatpit, EPBeliefsJSON, EPBeliefs),
     update_pit_beliefs(HunterPos, EPBeliefs, Percepts, Walls, NewEPBeliefs),
     
-    %% 3. JSON conversions
     beliefs_to_json(eatwumpus, NewEWBeliefs, NewEWBeliefsJSON),
     beliefs_to_json(eatpit,    NewEPBeliefs, NewEPBeliefsJSON),
     
-    %% 4. Track historical hazards (stench/breeze) specifically to manage plan invalidations and risk counts
     get_or_default(Beliefs.certain_fluents, observed_breezes, RawBreezes),
     maplist(dict_to_cell_safe, RawBreezes, OldBreezes),
     if_(member_t(breeze, Percepts), ensure_member(HPTerm, OldBreezes, NewBreezes), NewBreezes = OldBreezes),
@@ -67,14 +78,12 @@ select_action(HunterState, Action, NewHunterState) :-
     
     get_or_default(Beliefs.certain_fluents, intention_plan, InitialPlan),
     
-    %% 3. Plan Validation: Reset if new critical percepts appear
     if_(or_t(member_t(bump, Percepts),
              or_t(and_t(member_t(breeze, Percepts), non_member_t(HPTerm, OldBreezes)),
                   and_t(member_t(stench, Percepts), non_member_t(HPTerm, OldStenches)))),
         ValidPlan = [],
         ValidPlan = InitialPlan),
     
-    %% Build updated beliefs dict
     NewStep #= Step + 1,
     NewUE = Beliefs.uncertain_eternals
         .put(eat_wumpus, NewEWBeliefsJSON)
@@ -88,7 +97,6 @@ select_action(HunterState, Action, NewHunterState) :-
         .put(uncertain_eternals, NewUE)
         .put(certain_fluents, TempCF2),
 
-    %% 5. Decide action rhythm: Even steps = Think/Ingest, Odd steps = Act
     Rem #= Step mod 2,
     if_( =(Rem, 0),
          (Action = none, FinalBeliefs = NewBeliefs),
@@ -113,19 +121,10 @@ select_action(HunterState, Action, NewHunterState) :-
          )
     ),
     
-    %% 6. Move Decision Logging
-    DirList = Beliefs.certain_fluents.dir, 
-    if_(DirList = [D|_], CurrentDir = D.d, CurrentDir = north),
     maybe_log_move(Action, HunterPos, CurrentDir, FinalBeliefs),
     
-    %% 7. Bundle updated state
-    FinalDict = FinalBeliefs,
     NewHunterState = HunterState
-        .put(beliefs, FinalDict).
-
-%%% ──────────────────────────────────────────────────────────────────────────
-%%% HELPERS FOR REIFIED DICT ACCESS
-%%% ──────────────────────────────────────────────────────────────────────────
+        .put(beliefs, FinalBeliefs).
 
 get_or_default(CF, Key, Val) :-
     dict_pairs(CF, _, Pairs),
@@ -140,10 +139,6 @@ member_pair_t(Key, [K-V|Rest], Val, Truth) :-
 
 ensure_member(X, L, Res) :-
     if_(member_t(X, L), Res = L, Res = [X|L]).
-
-%%% ──────────────────────────────────────────────────────────────────────────
-%%% JSON SERIALIZATION HELPERS
-%%% ──────────────────────────────────────────────────────────────────────────
 
 beliefs_to_json(_, [], []).
 beliefs_to_json(Tag, [Term|Rest], [Dict|RestJSON]) :-
@@ -168,10 +163,6 @@ json_to_beliefs(Tag, [D|Rest], [Term|RestInternal]) :-
     json_to_beliefs(Tag, Rest, RestInternal).
 json_to_beliefs(Tag, [_|Rest], RestInternal) :-
     json_to_beliefs(Tag, Rest, RestInternal).
-
-%%% ──────────────────────────────────────────────────────────────────────────
-%%% BELIEF UPDATE  (using the ILP-learned wumpus/5 theory)
-%%% ──────────────────────────────────────────────────────────────────────────
 
 update_wumpus_beliefs(HunterPos, OldEWBeliefs, Percepts, Walls, NewEWBeliefs) :-
     dict_to_cell_safe(HunterPos, HPTerm),
@@ -208,8 +199,6 @@ assign_epistemic([V|_], V) :- !.
 assign_epistemic([], unknown).
 
 
-%% update_partitions(+EpistemicVal, +Cell, +KT_in, +KF_in, +OT_in, -KT_out, -KF_out, -OT_out)
-%% Hardened version with partition safety guards.
 update_partitions(unknown, _, KT_in, KF_in, OT_in, KT_in, KF_in, OT_in).
 update_partitions(knownTrue, C, KT_in, KF_in, OT_in, KT_out, KF_out, OT_out) :-
     if_(member_t(C, KF_in),
@@ -221,7 +210,7 @@ update_partitions(knownFalse, C, KT_in, KF_in, OT_in, KT_out, KF_out, OT_out) :-
         (KT_out = KT_in, add_if_new(C, KF_in, KF_out), remove_if_present(C, OT_in, OT_out))).
 update_partitions(orTrue, C, KT_in, KF_in, OT_in, KT_out, KF_out, OT_out) :-
     if_(or_t(member_t(C, KT_in), member_t(C, KF_in)),
-        (KT_out = KT_in, KF_out = KF_in, OT_out = OT_in), %% Skip re-OR-ing confirmed cells
+        (KT_out = KT_in, KF_out = KF_in, OT_out = OT_in),
         (KT_out = KT_in, KF_out = KF_in, add_if_new(C, OT_in, OT_out))).
 
 add_if_new(X, List, Res) :- if_(member_t(X, List), Res = List, Res = [X|List]).
@@ -236,10 +225,6 @@ filter_out([H|T], X, Res) :-
 
 not_member(_, []).
 not_member(X, [Y|Ys]) :- dif(X, Y), not_member(X, Ys).
-
-%%% ──────────────────────────────────────────────────────────────────────────
-%%% PIT BELIEF UPDATE (Deductive)
-%%% ──────────────────────────────────────────────────────────────────────────
 
 update_pit_beliefs(HunterPos, OldEPBeliefs, Percepts, Walls, NewEPBeliefs) :-
     dict_to_cell_safe(HunterPos, HPTerm),
@@ -263,16 +248,12 @@ update_pit_beliefs(HunterPos, OldEPBeliefs, Percepts, Walls, NewEPBeliefs) :-
             append(OldKF, SafeNeighbors, TempKF),
             sort(TempKF, FinalKF),
             subtract(OldOT, SafeNeighbors, FinalOT),
-            subtract(OldKT, SafeNeighbors, ActualFinalKT), %% Safety override
+            subtract(OldKT, SafeNeighbors, ActualFinalKT),
             FinalKT = ActualFinalKT
         )
     ),
     format(user_error, '[debug] Pit Update Post: KT=~w, KF=~w, OT=~w~n', [FinalKT, FinalKF, FinalOT]),
     NewEPBeliefs = [eatpit(knownTrue, FinalKT), eatpit(knownFalse, FinalKF), eatpit(orTrue, FinalOT)].
-
-%%% ──────────────────────────────────────────────────────────────────────────
-%%% DELIBERATION ENGINE
-%%% ──────────────────────────────────────────────────────────────────────────
 
 deliberate(_Beliefs, Percepts, [grab]) :- member(glitter, Percepts), !.
 
@@ -305,7 +286,7 @@ deliberate(Beliefs, _Percepts, [shoot]) :- can_shoot(Beliefs), !.
 deliberate(Beliefs, _Percepts, ActionSequence) :-
     choose_move_action(Beliefs, _, Plan),
     if_( =(Plan, []),
-         ActionSequence = [left], %% Deadlock breaker: if no plan found, turn instead of looping none
+         ActionSequence = [left],
          ActionSequence = Plan),
     !.
 
@@ -335,7 +316,7 @@ wumpus_in_direction(HPos, east,  cell(WX,WY)) :- HPos.y #= WY, WX #> HPos.x.
 wumpus_in_direction(HPos, west,  cell(WX,WY)) :- HPos.y #= WY, WX #< HPos.x.
 
 known_true_list_from_beliefs(Tag, Beliefs, Cells) :-
-    filter_beliefs_by_tag_ev(Beliefs, Tag, knownTrue, Nested),
+    filter_beliefs_by_ev(Beliefs, Tag, knownTrue, Nested),
     append(Nested, Flat),
     sort(Flat, Cells).
 
@@ -372,21 +353,27 @@ cell_in_line_of_fire(cell(HX, HY), south, cell(X, Y)) :- X #= HX, Y #< HY.
 cell_in_line_of_fire(cell(HX, HY), east, cell(X, Y)) :- Y #= HY, X #> HX.
 cell_in_line_of_fire(cell(HX, HY), west, cell(X, Y)) :- Y #= HY, X #< HX.
 
-filter_beliefs_by_tag_ev([], _, _, []).
-filter_beliefs_by_tag_ev([B|Rest], Tag, EV, Cells) :-
-    belief_tag_ev_t(B, Tag, EV, T),
+filter_beliefs_by_tag_ev(Beliefs, Tag, EV, Cells) :-
+    filter_beliefs_by_ev(Beliefs, Tag, EV, Cells).
+
+filter_beliefs_by_ev([], _, _, []).
+filter_beliefs_by_ev([B|Rest], Tag, EV, Cells) :-
+    belief_matches_t(B, Tag, EV, T),
     if_( =(T, true),
          (grab_cells(B, Cs), Cells = [Cs|Tail]),
          (Cells = Tail)),
-    filter_beliefs_by_tag_ev(Rest, Tag, EV, Tail).
+    filter_beliefs_by_ev(Rest, Tag, EV, Tail).
 
-belief_tag_ev_t(B, _Tag, EV, true) :- is_dict(B), get_dict(epistemicValue, B, EV), !.
-belief_tag_ev_t(B, Tag, EV, true) :- \+ is_dict(B), B =.. [Tag, EV, _], !.
-belief_tag_ev_t(_, _, _, false).
-
-%%% ──────────────────────────────────────────────────────────────────────────
-%%% MOVE SELECTION with A*, Risk, Frontier
-%%% ──────────────────────────────────────────────────────────────────────────
+belief_matches_t(B, _Tag, EV, true) :-
+    is_dict(B),
+    get_dict(epistemicValue, B, EV),
+    !.
+belief_matches_t(B, Tag, EV, true) :-
+    \+ is_dict(B),
+    B =.. [Functor, EV, _],
+    ( var(Tag) ; Tag = Functor ),
+    !.
+belief_matches_t(_, _, _, false).
 
 choose_move_action(Beliefs, _Percepts, ActionSequence) :-
     HunterPos = Beliefs.certain_fluents.fat_hunter.c,
@@ -402,7 +389,6 @@ choose_move_action(Beliefs, _Percepts, ActionSequence) :-
     dict_to_cell_safe(ExitPos, ExitCell),
     get_or_default(Beliefs.certain_fluents, observed_breezes, ObservedBreezes),
     
-    %% 1. Identify all safe unvisited cells (avoid retargeting the exit while exploring)
     findall(CTerm,
         (member(C, Cells),
          dict_to_cell_safe(C, CTerm),
@@ -413,7 +399,6 @@ choose_move_action(Beliefs, _Percepts, ActionSequence) :-
          not_was_visited(CTerm, Visited)),
         SafeUnvisited),
         
-    %% 2. Identify which ones are safely reachable, preferring the shortest plan
     findall(Len-Plan-C,
         (member(C, SafeUnvisited),
          astar(HPTerm, CurrentDir, [C], EWBeliefs, EPBeliefs, Walls, Visited, Plan),
@@ -421,7 +406,6 @@ choose_move_action(Beliefs, _Percepts, ActionSequence) :-
         ReachablePlans),
     
     if_( =(ReachablePlans, []),
-         %% PROBABILISTIC RISK MANAGEMENT (No safe path to any unvisited safe cell)
          (
              get_belief_cells(orTrue, EPBeliefs, OTCells),
              get_belief_cells(orTrue, EWBeliefs, OTWCells),
@@ -435,13 +419,11 @@ choose_move_action(Beliefs, _Percepts, ActionSequence) :-
                  CleanOT),
 
              if_( =(CleanOT, []),
-                  %% No safe and no orTrue -> Return home
                   (
                       ExitPos = Beliefs.certain_eternals.eat_exit.c,
                       dict_to_cell_safe(ExitPos, ExitCell),
                       astar(HPTerm, CurrentDir, [ExitCell], EWBeliefs, EPBeliefs, Walls, Visited, ActionSequence)
                   ),
-                  %% Pick the lowest risk orTrue
                   (
                       evaluate_risks(CleanOT, ObservedBreezes, RiskPairs),
                       sort(1, @=<, RiskPairs, [_-BestRiskyCell|_]),
@@ -449,14 +431,11 @@ choose_move_action(Beliefs, _Percepts, ActionSequence) :-
                   )
              )
          ),
-         %% REACHABLE SAFE FRONTIER
          (
-             %% Pick the shortest reachable plan instead of the lexicographically first action list
              sort(1, @=<, ReachablePlans, [_-ActionSequence-_|_])
          )
     ).
 
-%% Risk Evaluation: Risk score = adjacent breezes / adjacent cells
 evaluate_risks([], _, []).
 evaluate_risks([C|Cs], ObBreezes, [Risk-C|Rest]) :-
     findall(Adj, adjacent_cell(C, Adj), Adjs),
@@ -487,7 +466,6 @@ next_cell_in_dir_t(_, _, _, false).
 is_wall_t(Cell, Walls, true) :- is_wall(Cell, Walls), !.
 is_wall_t(_, _, false).
 
-%% Reified astar/9 wrapper for use with reif:if_/3
 astar(HP, Dir, Targets, EW, EP, Walls, Visited, Actions, Truth) :-
     findall(A, astar(HP, Dir, Targets, EW, EP, Walls, Visited, A), Plans),
     if_( =(Plans, []),
@@ -495,7 +473,6 @@ astar(HP, Dir, Targets, EW, EP, Walls, Visited, Actions, Truth) :-
          (Plans = [Actions|_], Truth = true)
     ).
 
-%% Strengthened safety filter: Target must be in knownFalse for exploration or already visited.
 cell_is_safe(Cell, EWBeliefs, EPBeliefs, Visited) :-
     cell_is_safe_t(Cell, EWBeliefs, EPBeliefs, Visited, true).
 
@@ -514,10 +491,6 @@ cell_is_safe_t(Cell, EWBeliefs, EPBeliefs, Visited, Truth) :-
         )
     ).
 
-%%% ──────────────────────────────────────────────────────────────────────────
-%%% A* PATHFINDING
-%%% ──────────────────────────────────────────────────────────────────────────
-%% Treats each state as (Cell, Direction)
 astar(StartCell, StartDir, Targets, EW, EP, Walls, Visited, Actions) :-
     heuristic(StartCell, Targets, H),
     PQ = [f(H)-0-(StartCell, StartDir)-[]],
@@ -557,22 +530,16 @@ next_cell_in_dir(cell(X,Y), west, cell(X1,Y)) :- X1 #= X - 1.
 
 heuristic(cell(X,Y), [cell(TX,TY)|_], H) :- H #= abs(X - TX) + abs(Y - TY).
 
-%%% ──────────────────────────────────────────────────────────────────────────
-%%% FRONTIER TARGETING
-%%% ──────────────────────────────────────────────────────────────────────────
 frontier_target(HX, SafeUnvisited, _Visited, Walls, Target) :-
-    %% Group unvisited safe cells into connected clusters
     find_clusters(SafeUnvisited, Walls, Clusters),
-    %% Target edge of largest
     if_( =(Clusters, []),
-         find_nearest(HX, SafeUnvisited, Target),   %% Fallback
+         find_nearest(HX, SafeUnvisited, Target),
          (
              sort_clusters_desc(Clusters, [LargestCluster|_]),
              find_nearest(HX, LargestCluster, Target)
          )
     ).
 
-%% BFS cluster builder
 find_clusters([], _, []).
 find_clusters([C|Cs], Walls, [Cluster|RestClusters]) :-
     build_cluster([C], Cs, Walls, Cluster, Remaining),
@@ -592,33 +559,13 @@ sort_clusters_desc(Clusters, Sorted) :-
 
 cluster_length_pair(Cluster, L-Cluster) :- length(Cluster, L).
 
-%%% ──────────────────────────────────────────────────────────────────────────
-%%% HELPER METHODS
-%%% ──────────────────────────────────────────────────────────────────────────
-
-%%% ==========================================================================
-%%% PERSISTENT BELIEF ACCESS (Fix for HW2 Belief Loss)
-%%% ==========================================================================
-
-%% get_belief_cells(+EV, +Beliefs, -AllCells)
-%% Collects ALL cells across ALL belief blocks matching the EpistemicValue.
 get_belief_cells(EV, Beliefs, AllCells) :-
     filter_beliefs_by_ev(Beliefs, EV, Nested),
     append(Nested, Flat),
     sort(Flat, AllCells).
 
-%% filter_beliefs_by_ev(+List, +EV, -CellsList)
-filter_beliefs_by_ev([], _, []).
-filter_beliefs_by_ev([B|Rest], EV, Cells) :-
-    belief_ev_t(B, EV, T),
-    if_( =(T, true),
-         (grab_cells(B, Cs), Cells = [Cs|Tail]),
-         (Cells = Tail)),
-    filter_beliefs_by_ev(Rest, EV, Tail).
-
-belief_ev_t(B, EV, true) :- is_dict(B), get_dict(epistemicValue, B, EV), !.
-belief_ev_t(B, EV, true) :- \+ is_dict(B), B =.. [_, EV, _], !.
-belief_ev_t(_, _, false).
+filter_beliefs_by_ev(Beliefs, EV, Cells) :-
+    filter_beliefs_by_ev(Beliefs, _, EV, Cells).
 
 grab_cells(B, Cs) :-
     is_dict_t(B, T),
@@ -695,7 +642,47 @@ adjacent_cell(cell(X,Y), cell(X1,Y)) :- X1 #= X - 1.
 adjacent_cell(DictA, DictB) :-
     is_dict(DictA), is_dict(DictB), !,
     adjacent_cell(cell(DictA.x, DictA.y), cell(DictB.x, DictB.y)).
-adjacent_cell(CellA, DictB) :- is_dict(DictB), !, adjacent_cell(CellA, cell(DictB.x, DictB.y)).
+adjacent_cell(CellA, DictB) :-
+    is_dict(DictB),
+    !,
+    adjacent_cell(CellA, cell(DictB.x, DictB.y)).
+
+wumpus(_HunterPos, EatWumpus, _Percepts, CellToTest, knownTrue) :-
+    in_known_true(CellToTest, EatWumpus).
+wumpus(HunterPos, EatWumpus, Percepts, CellToTest, knownTrue) :-
+    stench_in_percepts(Percepts),
+    in_or_true(CellToTest, EatWumpus),
+    or_true_list(EatWumpus, OrTrueList),
+    OrTrueList = [CellToTest],
+    adjacent_cell(HunterPos, CellToTest).
+wumpus(_HunterPos, EatWumpus, _Percepts, CellToTest, knownFalse) :-
+    in_known_false(CellToTest, EatWumpus).
+wumpus(HunterPos, _EatWumpus, Percepts, CellToTest, knownFalse) :-
+    no_stench_in_percepts(Percepts),
+    adjacent_cell(HunterPos, CellToTest).
+wumpus(_HunterPos, EatWumpus, _Percepts, CellToTest, orTrue) :-
+    in_or_true(CellToTest, EatWumpus),
+    \+ in_known_true(CellToTest, EatWumpus),
+    \+ in_known_false(CellToTest, EatWumpus).
+wumpus(_HunterPos, EatWumpus, _Percepts, CellToTest, unknown) :-
+    \+ in_known_true(CellToTest, EatWumpus),
+    \+ in_known_false(CellToTest, EatWumpus),
+    \+ in_or_true(CellToTest, EatWumpus).
+
+in_known_true(Cell, [eatwumpus(knownTrue, L)|_]) :- member(Cell, L), !.
+in_known_true(Cell, [_|T]) :- in_known_true(Cell, T).
+
+in_known_false(Cell, [eatwumpus(knownFalse, L)|_]) :- member(Cell, L), !.
+in_known_false(Cell, [_|T]) :- in_known_false(Cell, T).
+
+in_or_true(Cell, [eatwumpus(orTrue, L)|_]) :- member(Cell, L), !.
+in_or_true(Cell, [_|T]) :- in_or_true(Cell, T).
+
+or_true_list([eatwumpus(orTrue, L)|_], L) :- !.
+or_true_list([_|T], L) :- or_true_list(T, L).
+
+stench_in_percepts(Percepts) :- member(stench, Percepts).
+no_stench_in_percepts(Percepts) :- \+ member(stench, Percepts).
 
 is_wall(Cell, Walls) :-
     dict_to_cell_safe(Cell, CTerm),

@@ -5,17 +5,20 @@
 Un agent intelligent professionnel basé sur le modèle BDI (Croyance-Désir-Intention), implémenté en SWI-Prolog. Il navigue de manière autonome dans le Monde du Wumpus, gère l'incertitude épistémique et communique via une interface HTTP REST.
 
 ---
+
 ## Équipe
+
 - Mohamed Amine Barhoumi
 - Claude Epo
 - Franka Lebaramo
 - Patrick Gomes
 
-*IADS - ESIEA 4A, 2025-2026*
+_IADS - ESIEA 4A, 2025-2026_
 
 ---
 
 ## Table des Matières
+
 1. [Architecture](#architecture)
 2. [Modèle Mental BDI](#modèle-mental-bdi)
 3. [Représentation des Connaissances](#représentation-des-connaissances)
@@ -24,49 +27,50 @@ Un agent intelligent professionnel basé sur le modèle BDI (Croyance-Désir-Int
 6. [Exécution du Projet](#exécution-du-projet)
 7. [Logs de Débogage](#logs-de-débogage)
 
-
 ---
 
-
-
 ## Architecture
+
 Le projet est divisé en trois composants principaux :
 
-| Fichier | Rôle |
-| :--- | :--- |
-| `hunter_server.pl` | Point d'entrée. Enveloppe l'agent dans un serveur HTTP (port 8081) via `library(http)`. |
-| `hunter.pl` | Boucle BDI principale. Gère la mise à jour des croyances, la délibération A* et le choix des actions. |
-| `theory_wumpus.pl` | Théorie déclarative pour la détection du Wumpus (validée par ILP), gérant les transitions épistémiques. |
-| `reif.pl` | Module utilitaire fournissant la logique réifiée (`if_/3`) pour une programmation purement déclarative. |
-| `wumpussimserver/` | L'environnement de simulation qui héberge la grille du Monde du Wumpus. |
+| Fichier                       | Rôle                                                                                                           |
+| :---------------------------- | :------------------------------------------------------------------------------------------------------------- |
+| `hunter_server.pl`            | Point d'entrée. Enveloppe l'agent dans un serveur HTTP (port 8081) via `library(http)`.                        |
+| `hunter.pl`                   | Boucle BDI principale. Gère la mise à jour des croyances, la délibération A\* et le choix des actions.         |
+| `theory_wumpus.pl`            | Théorie déclarative pour la détection du Wumpus (validée par ILP), gérant les transitions épistémiques.        |
+| `hunter.pl` (helpers réifiés) | Le fichier intègre directement la logique réifiée minimale (`if_/3`, `member_t/3`, etc.) pour rester autonome. |
+| `wumpussimserver/`            | L'environnement de simulation qui héberge la grille du Monde du Wumpus.                                        |
 
 ---
 
 ## Modèle Mental BDI
+
 L'agent suit le cycle classique **Croyance-Désir-Intention** :
 
 - **Croyances (Beliefs)** : Un dictionnaire structuré stocké dans l'état de l'agent. Il inclut des fluents (position, statut de l'or), des éternels (murs, position de la sortie) et des **partitions épistémiques** pour les dangers.
 - **Désirs (Desires)** : Objectifs de haut niveau prioritaires pour le moteur de délibération :
-    1. **Ramasser l'Or** : Si une brillance (`glitter`) est détectée.
-    2. **Rentrer à la Maison** : Si l'or a été récupéré.
-    3. **Tuer le Wumpus** : Si une position confirmée est dans la ligne de mire.
-    4. **Explorer la Frontière** : Naviguer en toute sécurité vers des cellules non visitées.
-- **Intentions** : Une liste concrète d'actions (ex: `[move, right, move, grab]`) générée par le planificateur A* et stockée dans la croyance `intention_plan`.
+  1. **Ramasser l'Or** : Si une brillance (`glitter`) est détectée.
+  2. **Rentrer à la Maison** : Si l'or a été récupéré.
+  3. **Tuer le Wumpus** : Si une position confirmée est dans la ligne de mire.
+  4. **Explorer la Frontière** : Naviguer en toute sécurité vers des cellules non visitées.
+- **Intentions** : Une liste concrète d'actions (ex: `[move, right, move, grab]`) générée par le planificateur A\* et stockée dans la croyance `intention_plan`.
 
 ---
 
 ## Représentation des Connaissances
+
 L'agent utilise des **partitions épistémiques** pour représenter sa connaissance des dangers (Wumpus et Puits). Chaque cellule est classée dans l'une des trois partitions :
 
 - `knownTrue` : Le danger est définitivement présent à cet endroit.
 - `knownFalse` : La cellule est définitivement sûre.
-- `orTrue` : La cellule est un *suspect* (ex: adjacente à une odeur/brise mais non confirmée).
+- `orTrue` : La cellule est un _suspect_ (ex: adjacente à une odeur/brise mais non confirmée).
 
 `theory_wumpus.pl` contient la logique de transition entre ces états. Par exemple, si le chasseur est en (1,1) et ne sent rien, tous les voisins (1,2) et (2,1) passent en `knownFalse`. Si une odeur est sentie et qu'un seul voisin n'est pas `knownFalse`, il passe en `knownTrue`.
 
 ---
 
 ## Contrôle du Rythme (Étape Pair/Impair)
+
 L'agent implémente un **rythme Pair/Impair** pour séparer le calcul de l'action physique. Cela garantit que l'état de l'environnement reste synchronisé pendant que l'agent "réfléchit".
 
 ```mermaid
@@ -75,28 +79,31 @@ graph TD
     B -- "0 (Étape Paire)" --> C[Mise à jour des Croyances]
     C --> D[Action: none]
     D --> G[Retour à la Simulation]
-    
+
     B -- "1 (Étape Impaire)" --> E[Délibération / Prochaine Action]
     E --> F[Action: move/turn/grab...]
     F --> G
 ```
 
-
-
 ## Installation et Configuration
+
 Cloner le dépôt :
-   ```bash
-   git clone <url-du-depot>
-   cd ai-prolog/wumpussimhunter
-   ```
+
+```bash
+git clone <url-du-depot>
+cd ai-prolog/wumpussimhunter
+```
 
 ---
 
 ## Exécution du Projet
+
 1. **Démarrer le serveur du chasseur** :
+
    ```bash
    swipl hunter_server.pl
    ```
+
    Le serveur démarrera sur `http://localhost:8081`.
 
 2. **Connecter la simulation** :
@@ -105,6 +112,7 @@ Cloner le dépôt :
 ---
 
 ## Logs de Débogage
+
 L'agent affiche des logs détaillés dans la console. Recherchez les préfixes `[debug]` et `[hunter]` :
 
 - `[hunter] Processing Step X...` : Indique l'étape actuelle de la simulation.
