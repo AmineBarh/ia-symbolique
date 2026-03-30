@@ -93,15 +93,10 @@ graph TD
 ---
 
 ## Installation et Configuration
-1. Cloner le dépôt :
+Cloner le dépôt :
    ```bash
    git clone <url-du-depot>
    cd ai-prolog/wumpussimhunter
-   ```
-2. (Optionnel) Exécuter l'induction ALEPH pour régénérer la théorie :
-   ```bash
-   # Nécessite le pack Aleph
-   swipl -s aleph_script.pl
    ```
 
 ---
@@ -132,9 +127,4 @@ L'agent affiche des logs détaillés dans la console. Recherchez les préfixes `
 - **Injection de la "Ground-Truth"** : À l'étape 0, l'agent "regarde" le serveur de simulation pour cartographier les murs. Un agent réellement autonome devrait les découvrir uniquement via la perception `bump`.
 - **Gestion de la mémoire** : Sur de très grandes grilles, la liste des cellules visitées et les dictionnaires de partitions peuvent croître significativement.
 
----
 
-## Auteur
-**Mohamed Amine Barhoumi**  
-ESIEA Paris — 2026  
-*Cours d'Intelligence Artificielle Symbolique*
